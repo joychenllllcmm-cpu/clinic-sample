@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>诊所药品库（模拟）</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f1a33; --card:#111f40; --line:#22365f;
+      --text:#eaf0ff; --muted:#9bb0d0; --accent:#66a6ff;
+      --good:#4ade80; --warn:#fbbf24; --bad:#fb7185;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans SC",Arial,sans-serif;
+      background: radial-gradient(1200px 700px at 20% 0%, #172a64 0%, var(--bg) 55%), var(--bg);
+    }
+    .app{display:grid; grid-template-columns: 280px 1fr; min-height:100vh;}
+    .sidebar{
+      position:sticky; top:0; height:100vh; overflow:auto;
+      background: linear-gradient(to bottom, rgba(15,26,51,.95), rgba(15,26,51,.75));
+      border-right:1px solid rgba(34,54,95,.75);
+      padding:16px 14px;
+      backdrop-filter: blur(8px);
+    }
+    .brand{display:flex; gap:10px; align-items:center; margin-bottom:14px;}
+    .logo{
+      width:36px; height:36px; border-radius:12px;
+      background: rgba(102,166,255,.18);
+      border:1px solid rgba(102,166,255,.35);
+      display:grid; place-items:center; font-weight:700;
+    }
+    .brand h1{font-size:14px; margin:0; letter-spacing:.2px;}
+    .brand p{margin:2px 0 0; font-size:12px; color:var(--muted);}
+    .nav{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
+    .nav button{
+      width:100%; text-align:left; padding:10px 10px;
+      border-radius:12px; border:1px solid rgba(34,54,95,.85);
+      background: rgba(17,31,64,.55); color:var(--text);
+      cursor:pointer;
+    }
+    .nav button:hover{background: rgba(102,166,255,.10);}
+    .nav button.active{
+      background: rgba(102,166,255,.16);
+      border-color: rgba(102,166,255,.35);
+    }
+    .note{
+      margin-top:14px; padding:10px 10px; border-radius:12px;
+      border:1px dashed rgba(34,54,95,.75);
+      color:var(--muted); font-size:12px; line-height:1.45;
+    }
+
+    .main{padding:18px 18px 28px;}
+    .topbar{
+      position:sticky; top:0; z-index:5;
+      padding:14px 0 10px;
+      background: linear-gradient(to bottom, rgba(11,18,32,.92), rgba(11,18,32,.55));
+      backdrop-filter: blur(8px);
+      border-bottom:1px solid rgba(34,54,95,.35);
+    }
+    .wrap{max-width:1100px; margin:0 auto;}
+    .titleRow{display:flex; justify-content:space-between; align-items:flex-end; gap:10px;}
+    .titleRow h2{margin:0; font-size:18px;}
+    .titleRow .meta{color:var(--muted); font-size:12px;}
+    .controls{
+      margin-top:12px;
+      display:grid; grid-template-columns: 1fr 200px 170px 140px;
+      gap:10px;
+    }
+    input, select{
+      width:100%; padding:10px 10px; border-radius:12px;
+      border:1px solid rgba(34,54,95,.9);
+      background: rgba(17,31,64,.70);
+      color:var(--text); outline:none;
+    }
+    input::placeholder{color:#7f95bd}
+    .cards{padding-top:14px;}
+    .grid{display:grid; grid-template-columns: 1.2fr .8fr; gap:12px; align-items:start;}
+    .card{
+      background: rgba(17,31,64,.65);
+      border:1px solid rgba(34,54,95,.65);
+      border-radius:16px; overflow:hidden;
+    }
+    .card-hd{
+      padding:12px 14px;
+      display:flex; justify-content:space-between; align-items:center;
+      border-bottom:1px solid rgba(34,54,95,.45);
+    }
+    .card-hd b{font-size:13px}
+    .count{color:var(--muted); font-size:12px}
+    .list{max-height: calc(100vh - 220px); overflow:auto;}
+    .item{
+      padding:12px 14px; border-bottom:1px solid rgba(34,54,95,.28);
+      cursor:pointer;
+    }
+    .item:hover{background: rgba(102,166,255,.08);}
+    .name{font-weight:650}
+    .sub{margin-top:6px; color:var(--muted); font-size:12px; display:flex; gap:8px; flex-wrap:wrap;}
+    .pill{
+      border:1px solid rgba(34,54,95,.8);
+      background: rgba(11,18,32,.25);
+      padding:2px 8px; border-radius:999px;
+    }
+    .rightPad{padding:14px;}
+    .stat{display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;}
+    .kpi{
+      padding:10px; border-radius:14px;
+      border:1px solid rgba(34,54,95,.55);
+      background: rgba(11,18,32,.22);
+    }
+    .kpi .k{font-size:12px; color:var(--muted)}
+    .kpi .v{margin-top:6px; font-size:16px; font-weight:750}
+    .small{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.45;}
+
+    /* modal */
+    .mask{
+      position:fixed; inset:0; background: rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center; padding:16px;
+      z-index:50;
+    }
+    .modal{
+      width:min(920px, 100%); max-height:85vh; overflow:auto;
+      background: rgba(15,26,51,.96);
+      border:1px solid rgba(34,54,95,.8);
+      border-radius:18px;
+      box-shadow: 0 20px 70px rgba(0,0,0,.45);
+    }
+    .modal-hd{
+      padding:14px 14px 10px;
+      display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+      border-bottom:1px solid rgba(34,54,95,.45);
+    }
+    .modal-hd h3{margin:0; font-size:16px;}
+    .modal-hd .m2{margin-top:4px; color:var(--muted); font-size:12px;}
+    .close{
+      border:1px solid rgba(34,54,95,.9);
+      background: rgba(17,31,64,.65);
+      color:var(--text);
+      padding:8px 10px; border-radius:12px; cursor:pointer;
+    }
+    .tabs{display:flex; gap:8px; padding:10px 14px; border-bottom:1px solid rgba(34,54,95,.35);}
+    .tab{
+      padding:8px 10px; border-radius:999px;
+      border:1px solid rgba(34,54,95,.75);
+      background: rgba(17,31,64,.45);
+      color:var(--text); cursor:pointer; font-size:12px;
+    }
+    .tab.active{
+      background: rgba(102,166,255,.16);
+      border-color: rgba(102,166,255,.35);
+    }
+    .modal-bd{padding:12px 14px 16px;}
+    .kv{display:grid; grid-template-columns: 120px 1fr; gap:10px; padding:9px 0; border-bottom:1px dashed rgba(34,54,95,.55);}
+    .kv .k{color:var(--muted); font-size:12px}
+    .kv .v{font-size:13px; line-height:1.5; white-space:pre-wrap;}
+    table{width:100%; border-collapse:collapse; margin-top:8px;}
+    th, td{
+      text-align:left; padding:10px 10px; font-size:12px;
+      border-bottom:1px solid rgba(34,54,95,.35);
+      vertical-align:top;
+    }
+    th{color:var(--muted); font-weight:650}
+    .tag{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid rgba(34,54,95,.8); background: rgba(11,18,32,.25); font-size:12px;}
+    .dot{width:8px; height:8px; border-radius:99px; background: var(--good);}
+    .dot.warn{background: var(--warn);}
+    .dot.bad{background: var(--bad);}
+    .btnRow{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
+    .btn{
+      padding:9px 10px; border-radius:12px; cursor:pointer;
+      border:1px solid rgba(34,54,95,.9);
+      background: rgba(102,166,255,.12);
+      color:var(--text); font-size:12px;
+    }
+    .btn:hover{background: rgba(102,166,255,.18);}
+    .muted{color:var(--muted)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    @media (max-width: 980px){
+      .app{grid-template-columns: 1fr;}
+      .sidebar{position:relative; height:auto;}
+      .grid{grid-template-columns: 1fr;}
+      .controls{grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">Rx</div>
+      <div>
+        <h1>诊所药品库（模拟）</h1>
+        <p>员工只读查询 · 爸妈维护数据</p>
+      </div>
+    </div>
+
+    <div class="nav" id="nav">
+      <button class="active" data-view="search">药品查询</button>
+      <button data-view="inventory">库存总览</button>
+      <button data-view="expiry">效期预警</button>
+      <button data-view="price">价格速查</button>
+      <button data-view="tx">出入库记录（只读）</button>
+      <button data-view="help">使用说明</button>
+    </div>
+
+    <div class="note">
+      这是演示数据。正式版你只要把“数据区”替换成你们真实表格/接口导出的 JSON 就行。
+      <div style="margin-top:8px">快捷键：<span class="mono">/</span> 聚焦搜索；<span class="mono">Esc</span> 关闭详情。</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="wrap">
+        <div class="titleRow">
+          <h2 id="viewTitle">药品查询</h2>
+          <div class="meta" id="viewMeta">目录切换 · 搜索 · 点开查看详情</div>
+        </div>
+
+        <div class="controls" id="controls">
+          <input id="q" placeholder="搜索：药名 / 商品名 / 成分 / 用途（按 / 快捷聚焦）" />
+          <select id="category">
+            <option value="">全部分类</option>
+          </select>
+          <select id="stockFilter">
+            <option value="">库存：全部</option>
+            <option value="in">仅显示有库存</option>
+            <option value="low">仅显示低库存</option>
+          </select>
+          <select id="expiryFilter">
+            <option value="">效期：全部</option>
+            <option value="30">≤30天</option>
+            <option value="90">≤90天</option>
+            <option value="expired">已过期</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap cards">
+      <div class="grid">
+        <section class="card">
+          <div class="card-hd">
+            <b id="listTitle">药品列表</b>
+            <span class="count" id="count">0</span>
+          </div>
+          <div class="list" id="list"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-hd">
+            <b>概览</b>
+            <span class="count" id="now"></span>
+          </div>
+          <div class="rightPad">
+            <div class="stat">
+              <div class="kpi">
+                <div class="k">品种数</div>
+                <div class="v" id="kpiDrugs">-</div>
+              </div>
+              <div class="kpi">
+                <div class="k">库存总量（演示）</div>
+                <div class="v" id="kpiUnits">-</div>
+              </div>
+              <div class="kpi">
+                <div class="k">≤30天临期批次</div>
+                <div class="v" id="kpiExp30">-</div>
+              </div>
+              <div class="kpi">
+                <div class="k">已过期批次</div>
+                <div class="v" id="kpiExpired">-</div>
+              </div>
+            </div>
+            <div class="small" id="hint">
+              点击左侧“效期预警/价格速查”等目录，会自动切换列表展示逻辑。
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="mask" id="mask" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <h3 id="mTitle">药品详情</h3>
+        <div class="m2" id="mSub"></div>
+      </div>
+      <button class="close" id="close">关闭</button>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="modal-bd" id="mBody"></div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   数据区：演示药品 + 批次 + 流水
+   ========================= */
+const DB = {
+  drugs: [
+    // 感冒发热类
+    { id:"D001", category:"感冒/发热", generic:"对乙酰氨基酚片", brand:"泰诺林", form:"片剂", spec:"0.5g*24片",
+      ingredient:"对乙酰氨基酚",
+      indication:"发热、头痛、肌肉痛等对症退热镇痛。",
+      dosage:"成人：每次0.5–1g，每4–6小时一次；24小时不超过4g。",
+      storage:"密封，阴凉干燥处。",
+      rx:"OTC",
+      price_staff:18.0, price_retail:25.0, minStock:30
+    },
+    { id:"D002", category:"感冒/发热", generic:"布洛芬缓释胶囊", brand:"芬必得", form:"胶囊", spec:"0.3g*20粒",
+      ingredient:"布洛芬",
+      indication:"发热、关节痛、牙痛等镇痛退热。",
+      dosage:"成人：每次0.3g，每12小时一次；遵医嘱/按说明。",
+      storage:"密封保存。",
+      rx:"OTC",
+      price_staff:22.0, price_retail:32.0, minStock:20
+    },
+    { id:"D003", category:"感冒/发热", generic:"氯雷他定片", brand:"开瑞坦", form:"片剂", spec:"10mg*10片",
+      ingredient:"氯雷他定",
+      indication:"过敏性鼻炎、荨麻疹等过敏症状。",
+      dosage:"成人及≥12岁：10mg qd。",
+      storage:"常温避光。",
+      rx:"OTC",
+      price_staff:16.0, price_retail:23.0, minStock:15
+    },
+
+    // 胃肠道
+    { id:"D101", category:"胃肠道", generic:"奥美拉唑肠溶胶囊", brand:"洛赛克", form:"胶囊", spec:"20mg*14粒",
+      ingredient:"奥美拉唑",
+      indication:"胃/十二指肠溃疡、反流相关症状等。",
+      dosage:"常见：20mg qd 或 bid，按具体病情遵医嘱。",
+      storage:"干燥处保存。",
+      rx:"Rx",
+      price_staff:38.0, price_retail:55.0, minStock:10
+    },
+    { id:"D102", category:"胃肠道", generic:"蒙脱石散", brand:"思密达", form:"散剂", spec:"3g*10袋",
+      ingredient:"蒙脱石",
+      indication:"急慢性腹泻的对症治疗。",
+      dosage:"成人：每次1袋，一日3次；按情况调整。",
+      storage:"常温保存。",
+      rx:"OTC",
+      price_staff:20.0, price_retail:28.0, minStock:25
+    },
+    { id:"D103", category:"胃肠道", generic:"双歧杆菌三联活菌胶囊", brand:"金双歧", form:"胶囊", spec:"0.21g*24粒",
+      ingredient:"双歧杆菌/嗜酸乳杆菌/粪链球菌（示例）",
+      indication:"肠道菌群失调相关腹胀、腹泻等。",
+      dosage:"成人：常见2粒 tid（示例）；按医嘱。",
+      storage:"避光，按说明保存。",
+      rx:"OTC",
+      price_staff:45.0, price_retail:68.0, minStock:12
+    },
+
+    // 慢病用药
+    { id:"D201", category:"慢病用药", generic:"氨氯地平片", brand:"络活喜", form:"片剂", spec:"5mg*7片",
+      ingredient:"苯磺酸氨氯地平",
+      indication:"高血压、冠心病相关症状控制。",
+      dosage:"成人：常见5mg qd 起始，按血压调整（遵医嘱）。",
+      storage:"常温保存。",
+      rx:"Rx",
+      price_staff:12.0, price_retail:18.0, minStock:20
+    },
+    { id:"D202", category:"慢病用药", generic:"二甲双胍片", brand:"格华止", form:"片剂", spec:"0.5g*30片",
+      ingredient:"盐酸二甲双胍",
+      indication:"2型糖尿病血糖控制（配合饮食运动）。",
+      dosage:"随餐；起始低剂量逐步加量（遵医嘱）。",
+      storage:"密封保存。",
+      rx:"Rx",
+      price_staff:26.0, price_retail:38.0, minStock:18
+    },
+    { id:"D203", category:"慢病用药", generic:"阿托伐他汀钙片", brand:"立普妥", form:"片剂", spec:"20mg*7片",
+      ingredient:"阿托伐他汀",
+      indication:"高脂血症/动脉粥样硬化风险管理。",
+      dosage:"常见10–20mg qn（遵医嘱）。",
+      storage:"常温干燥处。",
+      rx:"Rx",
+      price_staff:28.0, price_retail:42.0, minStock:14
+    },
+
+    // 外用/护理
+    { id:"D301", category:"外用/护理", generic:"莫匹罗星软膏", brand:"百多邦", form:"软膏", spec:"2%*5g",
+      ingredient:"莫匹罗星",
+      indication:"轻度皮肤感染（脓疱/毛囊炎等）局部用。",
+      dosage:"外用：一日2–3次，疗程按医嘱/说明。",
+      storage:"常温保存。",
+      rx:"Rx",
+      price_staff:18.0, price_retail:26.0, minStock:8
+    },
+    { id:"D302", category:"外用/护理", generic:"氯己定洗液", brand:"—", form:"洗液", spec:"2%*100ml",
+      ingredient:"葡萄糖酸氯己定（示例）",
+      indication:"皮肤/创面周围清洁消毒（按适应症）。",
+      dosage:"外用，按说明稀释/使用。",
+      storage:"避光，常温。",
+      rx:"OTC",
+      price_staff:15.0, price_retail:22.0, minStock:10
+    },
+    { id:"D303", category:"外用/护理", generic:"氧化锌软膏", brand:"—", form:"软膏", spec:"10%*30g",
+      ingredient:"氧化锌",
+      indication:"湿疹/皮炎等皮肤保护（示例）。",
+      dosage:"外用：每日1–2次，薄涂。",
+      storage:"常温保存。",
+      rx:"OTC",
+      price_staff:9.0, price_retail:15.0, minStock:12
+    },
+  ],
+
+  // 批次：用于效期预警
+  batches: [
+    // 对乙酰氨基酚
+    { drugId:"D001", lot:"A2409", exp:"2026-02-05", qtyIn:120, inDate:"2025-11-10", supplier:"XX医药" },
+    { drugId:"D001", lot:"A2411", exp:"2026-01-10", qtyIn:80,  inDate:"2025-12-02", supplier:"XX医药" },
+
+    // 布洛芬
+    { drugId:"D002", lot:"B2408", exp:"2026-04-01", qtyIn:60,  inDate:"2025-10-15", supplier:"YY医药" },
+
+    // 氯雷他定
+    { drugId:"D003", lot:"L2401", exp:"2026-01-03", qtyIn:30,  inDate:"2025-09-01", supplier:"YY医药" },
+
+    // 奥美拉唑
+    { drugId:"D101", lot:"O2407", exp:"2025-12-28", qtyIn:25,  inDate:"2025-11-05", supplier:"ZZ医药" },
+
+    // 蒙脱石
+    { drugId:"D102", lot:"M2406", exp:"2026-06-30", qtyIn:100, inDate:"2025-08-22", supplier:"ZZ医药" },
+
+    // 益生菌
+    { drugId:"D103", lot:"P2402", exp:"2026-03-15", qtyIn:40,  inDate:"2025-10-02", supplier:"AA医药" },
+
+    // 氨氯地平
+    { drugId:"D201", lot:"Aml2410", exp:"2026-08-10", qtyIn:90, inDate:"2025-12-01", supplier:"BB医药" },
+
+    // 二甲双胍
+    { drugId:"D202", lot:"Met2409", exp:"2026-02-01", qtyIn:50, inDate:"2025-11-22", supplier:"BB医药" },
+
+    // 阿托伐他汀
+    { drugId:"D203", lot:"Ator2405", exp:"2026-01-08", qtyIn:35, inDate:"2025-09-18", supplier:"CC医药" },
+
+    // 莫匹罗星
+    { drugId:"D301", lot:"Mup2401", exp:"2025-12-20", qtyIn:18, inDate:"2025-11-01", supplier:"DD医药" },
+
+    // 氯己定
+    { drugId:"D302", lot:"CHX2403", exp:"2026-05-20", qtyIn:26, inDate:"2025-10-12", supplier:"DD医药" },
+
+    // 氧化锌
+    { drugId:"D303", lot:"Zn2404", exp:"2027-01-01", qtyIn:45, inDate:"2025-07-02", supplier:"EE医药" },
+  ],
+
+  // 流水：用于自动算库存（演示）
+  tx: [
+    { dt:"2025-12-02 10:12", drugId:"D001", type:"入库", qty:+80, note:"补货" },
+    { dt:"2025-12-03 09:20", drugId:"D001", type:"售出", qty:-26, note:"门诊" },
+    { dt:"2025-12-10 15:05", drugId:"D001", type:"售出", qty:-18, note:"门诊" },
+    { dt:"2025-12-18 11:40", drugId:"D001", type:"售出", qty:-12, note:"门诊" },
+
+    { dt:"2025-12-05 13:10", drugId:"D101", type:"入库", qty:+25, note:"新进" },
+    { dt:"2025-12-12 10:30", drugId:"D101", type:"售出", qty:-8,  note:"门诊" },
+    { dt:"2025-12-20 09:10", drugId:"D101", type:"售出", qty:-6,  note:"门诊" },
+
+    { dt:"2025-12-07 09:05", drugId:"D203", type:"入库", qty:+35, note:"新进" },
+    { dt:"2025-12-09 16:20", drugId:"D203", type:"售出", qty:-10, note:"门诊" },
+    { dt:"2025-12-21 10:00", drugId:"D203", type:"售出", qty:-9,  note:"门诊" },
+
+    { dt:"2025-12-01 14:10", drugId:"D301", type:"入库", qty:+18, note:"新进" },
+    { dt:"2025-12-08 10:50", drugId:"D301", type:"售出", qty:-5,  note:"门诊" },
+    { dt:"2025-12-22 09:35", drugId:"D301", type:"报损", qty:-1,  note:"包装破损" },
+  ]
+};
+
+/* =========================
+   工具函数
+   ========================= */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function todayISO(){
+  // 你当前日期是 2025-12-25（按你的系统环境），这里用本地实际时间也行
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function daysBetween(aISO, bISO){
+  const a = new Date(aISO+"T00:00:00");
+  const b = new Date(bISO+"T00:00:00");
+  return Math.floor((b - a) / (1000*60*60*24));
+}
+function expiryStatus(expISO){
+  const now = todayISO();
+  const d = daysBetween(now, expISO);
+  if (d < 0) return {level:"bad", text:`已过期（${Math.abs(d)}天）`};
+  if (d <= 30) return {level:"warn", text:`临期（${d}天）`};
+  if (d <= 90) return {level:"good", text:`≤90天（${d}天）`};
+  return {level:"good", text:`安全（${d}天）`};
+}
+function computeStock(drugId){
+  const sum = DB.tx.filter(t=>t.drugId===drugId).reduce((acc,t)=>acc + t.qty, 0);
+  // 演示：如果没流水，就用批次入库总量作为初始
+  const fallback = DB.batches.filter(b=>b.drugId===drugId).reduce((acc,b)=>acc + b.qtyIn, 0);
+  return sum !== 0 ? sum : fallback;
+}
+function nearestExpiry(drugId){
+  const list = DB.batches.filter(b=>b.drugId===drugId).map(b=>b.exp).sort();
+  return list.length ? list[0] : null;
+}
+function escapeHTML(s){return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+
+/* =========================
+   视图逻辑
+   ========================= */
+let VIEW = "search"; // search/inventory/expiry/price/tx/help
+let ACTIVE_TAB = "基本信息";
+let currentDrug = null;
+
+function init(){
+  // 分类下拉
+  const cats = [...new Set(DB.drugs.map(d=>d.category))].sort();
+  const sel = $("#category");
+  cats.forEach(c=>{
+    const opt = document.createElement("option");
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+
+  // 时间显示
+  $("#now").textContent = `今日：${todayISO()}`;
+
+  // KPI
+  refreshKPIs();
+
+  // 事件
+  $("#q").addEventListener("input", render);
+  $("#category").addEventListener("change", render);
+  $("#stockFilter").addEventListener("change", render);
+  $("#expiryFilter").addEventListener("change", render);
+
+  $("#close").addEventListener("click", closeModal);
+  $("#mask").addEventListener("click", (e)=>{ if(e.target.id==="mask") closeModal(); });
+  document.addEventListener("keydown", (e)=>{
+    if(e.key === "/"){ e.preventDefault(); $("#q").focus(); }
+    if(e.key === "Escape"){ closeModal(); }
+  });
+
+  // 左侧目录
+  $("#nav").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-view]");
+    if(!btn) return;
+    $$("#nav button").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    VIEW = btn.dataset.view;
+    configureView();
+    render();
+  });
+
+  configureView();
+  render();
+}
+
+function configureView(){
+  const titleMap = {
+    search: ["药品查询","按药名/成分/用途搜索，点击查看详情"],
+    inventory: ["库存总览","按库存高低与低库存预警展示"],
+    expiry: ["效期预警","按临期/过期优先展示批次"],
+    price: ["价格速查","只展示员工价/零售价（演示）"],
+    tx: ["出入库记录（只读）","按药品查看最近流水（演示）"],
+    help: ["使用说明","员工怎么查 · 爸妈怎么维护（建议）"]
+  };
+  $("#viewTitle").textContent = titleMap[VIEW][0];
+  $("#viewMeta").textContent = titleMap[VIEW][1];
+
+  // 控件显示：help 视图隐藏筛选条
+  $("#controls").style.display = (VIEW==="help") ? "none" : "grid";
+
+  // 列表标题
+  const listTitleMap = {
+    search:"药品列表",
+    inventory:"库存列表",
+    expiry:"临期/过期批次列表（点击药品看详情）",
+    price:"价格列表",
+    tx:"药品列表（点开看该药流水）",
+    help:""
+  };
+  $("#listTitle").textContent = listTitleMap[VIEW] || "列表";
+}
+
+function refreshKPIs(){
+  const drugsCount = DB.drugs.length;
+  const totalUnits = DB.drugs.reduce((acc,d)=>acc + Math.max(0, computeStock(d.id)), 0);
+
+  const now = todayISO();
+  let exp30 = 0, expired = 0;
+  DB.batches.forEach(b=>{
+    const diff = daysBetween(now, b.exp);
+    if(diff < 0) expired++;
+    else if(diff <= 30) exp30++;
+  });
+
+  $("#kpiDrugs").textContent = drugsCount;
+  $("#kpiUnits").textContent = totalUnits;
+  $("#kpiExp30").textContent = exp30;
+  $("#kpiExpired").textContent = expired;
+}
+
+function matchFilters(drug){
+  const q = $("#q").value.trim().toLowerCase();
+  const cat = $("#category").value;
+  const stockFilter = $("#stockFilter").value;
+  const expiryFilter = $("#expiryFilter").value;
+
+  // category
+  if(cat && drug.category !== cat) return false;
+
+  // search
+  if(q){
+    const hay = [
+      drug.generic, drug.brand, drug.ingredient, drug.indication, drug.dosage, drug.spec, drug.form, drug.category, drug.rx
+    ].join(" ").toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+
+  // stock
+  const stock = computeStock(drug.id);
+  if(stockFilter === "in" && stock <= 0) return false;
+  if(stockFilter === "low" && !(stock <= drug.minStock)) return false;
+
+  // expiry
+  const ne = nearestExpiry(drug.id);
+  if(expiryFilter){
+    if(!ne) return false;
+    const d = daysBetween(todayISO(), ne);
+    if(expiryFilter === "expired" && !(d < 0)) return false;
+    if(expiryFilter === "30" && !(d >= 0 && d <= 30)) return false;
+    if(expiryFilter === "90" && !(d >= 0 && d <= 90)) return false;
+  }
+
+  return true;
+}
+
+function render(){
+  const listEl = $("#list");
+  listEl.innerHTML = "";
+
+  if(VIEW === "help"){
+    $("#count").textContent = "";
+    listEl.innerHTML = `
+      <div class="item" style="cursor:default">
+        <div class="name">员工使用</div>
+        <div class="sub">
+          <span class="pill">搜索药名/成分/用途</span>
+          <span class="pill">看库存与临期</span>
+          <span class="pill">看员工价</span>
+        </div>
+        <div style="margin-top:10px" class="muted">
+          这版网页默认只读，不提供任何写入入口。员工只需要“查 + 核对”。
+        </div>
+      </div>
+      <div class="item" style="cursor:default">
+        <div class="name">爸妈维护数据（建议流程）</div>
+        <div class="muted" style="margin-top:10px; line-height:1.6">
+          1）每次进货：新增批次（批号/有效期/数量/供应商）并记一条“入库流水”<br/>
+          2）每天售出：只记“售出流水”（数量为负数），库存自动汇总<br/>
+          3）每周：打开“效期预警”，优先处理≤30天/已过期批次
+        </div>
+      </div>
+      <div class="item" style="cursor:default">
+        <div class="name">下一步升级（你要真做数据库录入）</div>
+        <div class="muted" style="margin-top:10px; line-height:1.6">
+          - 用飞书多维表格/Notion/Airtable 存数据：爸妈可写，员工只读<br/>
+          - 网页从表格拉取 JSON 展示：保留现在的交互体验<br/>
+          - 如需“网页登录录入”，再上 Supabase/Firebase（更像真正系统）
+        </div>
+      </div>
+    `;
+    $("#hint").textContent = "现在是说明页。切回左侧目录查看交互。";
+    return;
+  }
+
+  let rows = [];
+  const drugs = DB.drugs.filter(matchFilters);
+
+  if(VIEW === "expiry"){
+    // 按最近到期优先（含过期）
+    rows = drugs.map(d=>{
+      const ne = nearestExpiry(d.id);
+      const diff = ne ? daysBetween(todayISO(), ne) : 99999;
+      return {d, ne, diff};
+    }).sort((a,b)=>a.diff - b.diff);
+  } else if(VIEW === "inventory"){
+    rows = drugs.map(d=>({d, stock: computeStock(d.id)})).sort((a,b)=>a.stock - b.stock);
+  } else if(VIEW === "price"){
+    rows = drugs.map(d=>({d})).sort((a,b)=> (a.d.price_staff||0) - (b.d.price_staff||0));
+  } else {
+    rows = drugs.map(d=>({d}));
+  }
+
+  $("#count").textContent = `${rows.length} 条`;
+
+  // 列表渲染
+  rows.forEach(obj=>{
+    const d = obj.d;
+    const stock = computeStock(d.id);
+    const ne = nearestExpiry(d.id);
+    const exp = ne ? expiryStatus(ne) : null;
+    const low = stock <= d.minStock;
+
+    const metaParts = [];
+    metaParts.push(`<span class="pill">${escapeHTML(d.category)}</span>`);
+    metaParts.push(`<span class="pill">${escapeHTML(d.rx)}</span>`);
+    metaParts.push(`<span class="pill">库存：${stock}${low ? "（低）" : ""}</span>`);
+    if(ne){
+      const dotCls = exp.level === "bad" ? "bad" : (exp.text.includes("临期") ? "warn" : "");
+      metaParts.push(`<span class="pill">最近效期：${ne} · ${escapeHTML(exp.text)}</span>`);
+    } else {
+      metaParts.push(`<span class="pill">最近效期：—</span>`);
+    }
+    if(VIEW === "price"){
+      metaParts.push(`<span class="pill">员工价：¥${Number(d.price_staff).toFixed(2)}</span>`);
+      metaParts.push(`<span class="pill">零售价：¥${Number(d.price_retail).toFixed(2)}</span>`);
+    } else {
+      metaParts.push(`<span class="pill">员工价：¥${Number(d.price_staff).toFixed(2)}</span>`);
+    }
+
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `
+      <div class="name">${escapeHTML(d.generic)} <span class="muted">· ${escapeHTML(d.spec)}</span></div>
+      <div class="sub">${metaParts.join("")}</div>
+    `;
+    el.addEventListener("click", ()=> openDrug(d.id));
+    listEl.appendChild(el);
+  });
+
+  // 右侧提示
+  if(VIEW === "expiry") $("#hint").textContent = "提示：这里按“最近到期”排序，过期/临期会排在最上面。";
+  else if(VIEW === "inventory") $("#hint").textContent = "提示：这里按“库存从低到高”排序，方便补货。";
+  else if(VIEW === "price") $("#hint").textContent = "提示：这里用于员工快速查价格（演示只读）。";
+  else if(VIEW === "tx") $("#hint").textContent = "提示：点开药品查看该药最近的出入库流水。";
+  else $("#hint").textContent = "提示：点开药品查看详情（用途/剂量/效期/价格/流水）。";
+}
+
+function openDrug(drugId){
+  const d = DB.drugs.find(x=>x.id===drugId);
+  if(!d) return;
+  currentDrug = d;
+  ACTIVE_TAB = "基本信息";
+
+  $("#mTitle").textContent = `${d.generic} · ${d.spec}`;
+  $("#mSub").textContent = `${d.category} · ${d.rx} · 商品名：${d.brand || "—"} · 剂型：${d.form}`;
+
+  // tabs（tx 视图也允许看流水）
+  const tabs = ["基本信息","用法用量","批次效期","价格","流水"];
+  const tabsEl = $("#tabs");
+  tabsEl.innerHTML = "";
+  tabs.forEach(t=>{
+    const b = document.createElement("button");
+    b.className = "tab" + (t===ACTIVE_TAB ? " active" : "");
+    b.textContent = t;
+    b.addEventListener("click", ()=>{
+      ACTIVE_TAB = t;
+      $$("#tabs .tab").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active");
+      renderModalBody();
+    });
+    tabsEl.appendChild(b);
+  });
+
+  renderModalBody();
+  $("#mask").style.display = "flex";
+}
+
+function closeModal(){
+  $("#mask").style.display = "none";
+  currentDrug = null;
+}
+
+function renderModalBody(){
+  const d = currentDrug;
+  const body = $("#mBody");
+  if(!d){ body.innerHTML=""; return; }
+
+  const stock = computeStock(d.id);
+  const ne = nearestExpiry(d.id);
+  const exp = ne ? expiryStatus(ne) : null;
+
+  if(ACTIVE_TAB === "基本信息"){
+    body.innerHTML = `
+      <div class="kv"><div class="k">通用名</div><div class="v">${escapeHTML(d.generic)}</div></div>
+      <div class="kv"><div class="k">商品名</div><div class="v">${escapeHTML(d.brand||"—")}</div></div>
+      <div class="kv"><div class="k">分类</div><div class="v">${escapeHTML(d.category)}</div></div>
+      <div class="kv"><div class="k">成分</div><div class="v">${escapeHTML(d.ingredient)}</div></div>
+      <div class="kv"><div class="k">用途</div><div class="v">${escapeHTML(d.indication)}</div></div>
+      <div class="kv"><div class="k">规格/剂型</div><div class="v">${escapeHTML(d.spec)} · ${escapeHTML(d.form)}</div></div>
+      <div class="kv"><div class="k">库存（自动汇总）</div><div class="v">${stock} ${stock<=d.minStock ? "（低库存）" : ""}</div></div>
+      <div class="kv"><div class="k">最近效期</div><div class="v">${
+        ne ? `${ne} · ${escapeHTML(exp.text)} <span class="tag" style="margin-left:8px"><span class="dot ${exp.level==="bad"?"bad":(exp.text.includes("临期")?"warn":"")}"></span>${exp.level==="bad"?"过期":(exp.text.includes("临期")?"临期":"正常")}</span>`
+           : "—"
+      }</div></div>
+      <div class="kv"><div class="k">储存/注意</div><div class="v">${escapeHTML(d.storage||"—")}</div></div>
+      <div class="btnRow">
+        <button class="btn" id="copySummary">一键复制（药品信息）</button>
+        <span class="muted">（演示：复制到剪贴板，方便发同事/患者）</span>
+      </div>
+    `;
+    $("#copySummary").addEventListener("click", ()=>{
+      const txt = [
+        `【${d.generic}】${d.spec}`,
+        `商品名：${d.brand||"—"}；分类：${d.category}；处方：${d.rx}`,
+        `成分：${d.ingredient}`,
+        `用途：${d.indication}`,
+        `用法用量：${d.dosage}`,
+        `库存：${stock}${stock<=d.minStock?"（低库存）":""}`,
+        `最近效期：${ne ? `${ne}（${exp.text}）` : "—"}`,
+        `员工价：¥${Number(d.price_staff).toFixed(2)}；零售价：¥${Number(d.price_retail).toFixed(2)}`
+      ].join("\n");
+      navigator.clipboard.writeText(txt).then(()=>alert("已复制"));
+    });
+    return;
+  }
+
+  if(ACTIVE_TAB === "用法用量"){
+    body.innerHTML = `
+      <div class="kv"><div class="k">用法用量</div><div class="v">${escapeHTML(d.dosage)}</div></div>
+      <div class="kv"><div class="k">用途/适应症</div><div class="v">${escapeHTML(d.indication)}</div></div>
+      <div class="kv"><div class="k">备注（演示）</div><div class="v">正式版可加：禁忌/不良反应/相互作用/特殊人群提示等字段。</div></div>
+    `;
+    return;
+  }
+
+  if(ACTIVE_TAB === "批次效期"){
+    const batches = DB.batches.filter(b=>b.drugId===d.id).slice().sort((a,b)=> (a.exp > b.exp ? 1 : -1));
+    let rows = batches.map(b=>{
+      const st = expiryStatus(b.exp);
+      const dotCls = st.level==="bad" ? "bad" : (st.text.includes("临期") ? "warn" : "");
+      return `
+        <tr>
+          <td>${escapeHTML(b.lot)}</td>
+          <td>${escapeHTML(b.inDate)}</td>
+          <td>${escapeHTML(b.exp)}<div class="tag" style="margin-top:6px"><span class="dot ${dotCls}"></span>${escapeHTML(st.text)}</div></td>
+          <td>${b.qtyIn}</td>
+          <td>${escapeHTML(b.supplier||"—")}</td>
+        </tr>
+      `;
+    }).join("");
+
+    if(!rows) rows = `<tr><td colspan="5" class="muted">暂无批次数据</td></tr>`;
+
+    body.innerHTML = `
+      <div class="muted">批次按“最近到期”排序。正式版可扩展：出库绑定批次（先进先出）。</div>
+      <table>
+        <thead>
+          <tr>
+            <th>批号</th>
+            <th>入库日期</th>
+            <th>有效期</th>
+            <th>入库数量</th>
+            <th>供应商</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    return;
+  }
+
+  if(ACTIVE_TAB === "价格"){
+    body.innerHTML = `
+      <div class="kv"><div class="k">员工价（展示）</div><div class="v">¥${Number(d.price_staff).toFixed(2)}</div></div>
+      <div class="kv"><div class="k">零售价（展示）</div><div class="v">¥${Number(d.price_retail).toFixed(2)}</div></div>
+      <div class="kv"><div class="k">进价（默认隐藏）</div><div class="v">正式版：只给爸妈可见（避免敏感），网页员工端不展示。</div></div>
+    `;
+    return;
+  }
+
+  if(ACTIVE_TAB === "流水"){
+    const tx = DB.tx.filter(t=>t.drugId===d.id).slice().sort((a,b)=> (a.dt < b.dt ? 1 : -1)).slice(0, 20);
+    let rows = tx.map(t=>`
+      <tr>
+        <td>${escapeHTML(t.dt)}</td>
+        <td>${escapeHTML(t.type)}</td>
+        <td>${t.qty}</td>
+        <td>${escapeHTML(t.note||"—")}</td>
+      </tr>
+    `).join("");
+    if(!rows) rows = `<tr><td colspan="4" class="muted">暂无流水（演示库存会用批次数量做fallback）</td></tr>`;
+
+    body.innerHTML = `
+      <div class="kv"><div class="k">当前库存（汇总）</div><div class="v">${stock}</div></div>
+      <div class="muted">最近 20 条（演示）。正式版可加：按日期筛选、导出、经办人。</div>
+      <table>
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>类型</th>
+            <th>数量</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    return;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
